@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stable-diffusion Image Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <style>
+        :root {
+            --neon-text-color: #f40;
+            --neon-border-color: #08f;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            background: #000;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            background-image: 
+                linear-gradient(45deg, #000 25%, transparent 25%),
+                linear-gradient(-45deg, #000 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #000 75%),
+                linear-gradient(-45deg, transparent 75%, #000 75%);
+            background-size: 20px 20px;
+            background-color: #0a0a2a;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid var(--neon-border-color);
+            box-shadow: 0 0 10px var(--neon-border-color);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--neon-text-color);
+            text-shadow: 0 0 10px var(--neon-text-color);
+            margin-bottom: 30px;
+        }
+
+        .chat-container {
+            height: 700px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 1px solid var(--neon-border-color);
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 80%;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .user-message {
+            background: rgba(244, 0, 0, 0.2);
+            margin-left: auto;
+            border: 1px solid var(--neon-text-color);
+        }
+
+        .bot-message {
+            background: rgba(0, 136, 255, 0.2);
+            margin-right: auto;
+            border: 1px solid var(--neon-border-color);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--neon-border-color);
+            color: #fff;
+            font-family: 'Courier New', monospace;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: transparent;
+            border: 1px solid var(--neon-text-color);
+            color: var(--neon-text-color);
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            background: var(--neon-text-color);
+            color: #000;
+            box-shadow: 0 0 10px var(--neon-text-color);
+        }
+
+        .typing-message {
+            background: rgba(0, 136, 255, 0.2);
+            margin-right: auto;
+            border: 1px solid var(--neon-border-color);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            opacity: 0;
+            transform: translateY(20px);
+        }
+
+        .dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            margin-right: 3px;
+            background: var(--neon-border-color);
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        .generated-image {
+            max-width: 100%;
+            margin-top: 10px;
+            border: 2px solid var(--neon-border-color);
+        }
+
+        .download-btn {
+            display: block;
+            margin: 10px auto;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.4; }
+            50% { opacity: 1; }
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Stable-diffusion Image Generator</h1>
+        <div class="chat-container" id="chatContainer">
+            <div class="message bot-message" style="opacity: 1; transform: none;">
+                Describe the image you want to generate using runwayml/stable-diffusion-v1-5.
+            </div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="userInput" placeholder="Describe the image you want to generate...">
+            <button onclick="sendMessage()">Generate</button>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'http://localhost:8000';
+        let isGenerating = false;
+
+        async function sendMessage() {
+            if (isGenerating) return;
+            
+            const input = document.getElementById('userInput');
+            const prompt = input.value.trim();
+            
+            if (!prompt) return;
+
+            isGenerating = true;
+
+            // Add user message
+            addMessage(prompt, 'user');
+            input.value = '';
+
+            // Add typing indicator with animation
+            const typingMessage = document.createElement('div');
+            typingMessage.className = 'message typing-message';
+            typingMessage.innerHTML = `
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <span>Generating image...</span>
+            `;
+            document.getElementById('chatContainer').appendChild(typingMessage);
+
+            // Animate typing indicator appearance
+            await anime({
+                targets: typingMessage,
+                opacity: [0, 1],
+                translateY: [20, 0],
+                duration: 500,
+                easing: 'easeOutCubic'
+            }).finished;
+
+            try {
+                // Generate image
+                const response = await fetch(`${API_URL}/generate-image`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ prompt }),
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to generate image');
+                }
+
+                const data = await response.json();
+                
+                // Remove typing indicator with animation
+                await anime({
+                    targets: typingMessage,
+                    opacity: 0,
+                    translateY: 20,
+                    duration: 500,
+                    easing: 'easeInCubic'
+                }).finished;
+                
+                typingMessage.remove();
+
+                // Create image and download button elements
+                const imageUrl = `${API_URL}/images/${data.filename}`;
+                const imageHtml = `
+                    <img src="${imageUrl}" alt="Generated image" class="generated-image">
+                    <button onclick="downloadImage('${imageUrl}')" class="download-btn">Download Image</button>
+                `;
+                
+                addMessage(imageHtml, 'bot');
+
+            } catch (error) {
+                // Remove typing indicator
+                typingMessage.remove();
+                addMessage('Sorry, there was an error generating the image. Please try again.', 'bot');
+                console.error('Error:', error);
+            }
+
+            isGenerating = false;
+        }
+
+        function addMessage(content, sender) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}-message`;
+            messageDiv.innerHTML = content;
+            chatContainer.appendChild(messageDiv);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+
+            // Animate message appearance
+            anime({
+                targets: messageDiv,
+                opacity: [0, 1],
+                translateY: [20, 0],
+                duration: 500,
+                easing: 'easeOutCubic'
+            });
+        }
+
+        async function downloadImage(url) {
+            try {
+                const response = await fetch(url);
+                const blob = await response.blob();
+                const downloadUrl = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = 'generated-image.png';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(downloadUrl);
+            } catch (error) {
+                console.error('Error downloading image:', error);
+            }
+        }
+
+        // Add event listener for Enter key
+        document.getElementById('userInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
