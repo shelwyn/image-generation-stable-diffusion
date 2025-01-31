@@ -69,14 +69,17 @@ mkdir generated_images
 
 1. Start the FastAPI server:
 ```bash
-python main.py
+uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-2. Open `index.html` in your web browser
+2. 
+```bash
+python -m http.server 3000
+```
 
 The application will be running at:
 - Backend: `http://localhost:8000`
-- Frontend: Open `index.html` directly in your browser
+- Frontend: Open `http://localhost:3000/index.html` directly in your browser
 
 ## 📁 Project Structure
 
