@@ -72,7 +72,7 @@ mkdir generated_images
 uvicorn main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-2. 
+2. Running the Frontend Server
 ```bash
 python -m http.server 3000
 ```
